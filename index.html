@@ -93,12 +93,15 @@ class ZestoFirestoreRef {
     return new ZestoFirestoreRef(this.path,c);
   }
   _parts(){ return zestoPathParts(this.path); }
-  _location(){
+_location(){
     const p=this._parts();
     const collection=p[0] || '';
-    if(p.length===1) return {collection,docId:ZESTO_SINGLETON_COLLECTIONS.has(collection)?'default':null,nested:[]};
-    return {collection,docId:p[1],nested:p.slice(2)};
-  }
+    if(ZESTO_SINGLETON_COLLECTIONS.has(collection)){
+      return {collection,docId:'default',nested:p.length>1?p.slice(1):null};
+    }
+    if(p.length===1) return {collection,docId:null,nested:null};
+    return {collection,docId:p[1],nested:p.length>2?p.slice(2):null};
+    }
   _query(){
     const loc=this._location();
     let q=zestoCollectionRef(loc.collection);
