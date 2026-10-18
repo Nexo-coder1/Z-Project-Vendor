@@ -1535,7 +1535,7 @@ function SignupView(){
       <div style="text-align:center;margin-bottom:22px"><div style="font-family:Poppins;font-weight:800;font-size:30px;color:var(--accentDark)">Create Account</div><p class="muted">Sign up to start ordering</p></div>
       <div class="card pad">
         <label>Full Name</label><input id="sg-name" placeholder="Your name">
-        <label>Email</label><input id="sg-email" type="email" placeholder="you@email.com">
+        (यह पूरी line हटा दें, कुछ भी नया नहीं लगाना)
         <label>Mobile Number</label><input id="sg-mobile" type="tel" placeholder="10-digit mobile number">
         <label>Password</label><input id="sg-pw" type="password" placeholder="Minimum 6 characters">
         <div id="sg-error" style="color:#E11D48;font-size:13px;margin-top:6px;display:none"></div>
@@ -1545,19 +1545,23 @@ function SignupView(){
     </section>`;
   $("#sg-submit").addEventListener("click",()=>{
     if(!getAuth()){alert("Sign up isn't available in this browser mode right now. Please try again in a normal (non-incognito) tab.");return}
-    const name=$("#sg-name").value.trim();const email=$("#sg-email").value.trim();const mobile=$("#sg-mobile").value.trim();const pw=$("#sg-pw").value;
+    const name=$("#sg-name").value.trim();const mobile=$("#sg-mobile").value.trim();const pw=$("#sg-pw").value;
     const errBox=$("#sg-error");errBox.style.display="none";
-    if(!name||!email||!mobile||!pw){errBox.textContent="Please fill all fields.";errBox.style.display="block";return}
+    if(!name||!mobile||!pw){errBox.textContent="Please fill all fields.";errBox.style.display="block";return}
+    if(!zestoNormalizeMobile(mobile)){errBox.textContent="Enter a valid 10-digit mobile number.";errBox.style.display="block";return}
     if(pw.length<6){errBox.textContent="Password must be at least 6 characters.";errBox.style.display="block";return}
     const btn=$("#sg-submit");btn.disabled=true;btn.innerHTML="Creating account...";
-    let newUid=null;
-    zestoSignUp(getAuth(),mobile,pw).then(cred=>{
-      newUid=cred.user.uid;
-      return db.ref('users/'+newUid).set({name,email,mobile,createdAt:Date.now(),blocked:false});
-    }).then(()=>{
-      PROFILE.name=name;PROFILE.email=email;PROFILE.phone=mobile;PROFILE.isComplete=hasCompleteProfile();saveProfile();
-      ZESTO_AUTH_FLOW=false;getAuth().signOut();authBootHandled=true;toast("Account created. Please wait for admin approval before logging in.");routeTo("#/login");
-    }).catch(e=>{ZESTO_AUTH_FLOW=false;getAuth().signOut();errBox.textContent=e.message.replace("Firebase: ","");errBox.style.display="block";btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-user-plus"></i> Sign Up'});
+    const ten=zestoNormalizeMobile(mobile);
+    zestoSignUp(getAuth(),ten,pw).then(async cred=>{
+      const uid=cred.user.uid;
+      await firebase.firestore().collection('userRoles').doc(uid).set({role:'vendor'});
+      await db.ref('users/'+uid).set({name,mobile:ten,createdAt:Date.now(),blocked:false});
+      PROFILE.name=name;PROFILE.email="";PROFILE.phone=ten;PROFILE.isComplete=false;saveProfile();
+      ZESTO_AUTH_FLOW=false;
+      AUTH_USER=cred.user;authBootHandled=true;zestoHandleUser(cred.user);
+      toast("Account created! Please complete your restaurant details.");
+      routeTo("#/vendor/register");render();
+    }).catch(e=>{ZESTO_AUTH_FLOW=false;errBox.textContent=(e.message||"Sign up failed. Please try again.").replace("Firebase: ","");errBox.style.display="block";btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-user-plus"></i> Sign Up'});
   });
 }
 function ForgotPasswordView(){
@@ -1566,7 +1570,7 @@ function ForgotPasswordView(){
     <section style="padding:24px 20px" class="auth-animate">
       <div style="text-align:center;margin-bottom:22px"><div style="font-family:Poppins;font-weight:800;font-size:26px;color:var(--accentDark)">Reset Password</div><p class="muted">We'll connect you with our support team on WhatsApp</p></div>
       <div class="card pad">
-        <label>Registered Email or Mobile Number</label><input id="fp-email" placeholder="you@email.com or 9876543210">
+<label>Registered Mobile Number</label><input id="fp-email" type="tel" placeholder="10-digit mobile number">
         <div id="fp-msg" style="font-size:13px;margin-top:6px;display:none"></div>
         <button class="btn btn-block" id="fp-submit" style="margin-top:16px"><i class="fa-brands fa-whatsapp"></i> Continue on WhatsApp</button>
         <div style="text-align:center;margin-top:14px;font-size:13px" class="muted"><a href="#/login" style="color:var(--accent);font-weight:700">Back to Login</a></div>
@@ -1575,8 +1579,8 @@ function ForgotPasswordView(){
   $("#fp-submit").addEventListener("click",()=>{
     const id=$("#fp-email").value.trim();
     const msg=$("#fp-msg");msg.style.display="block";
-    if(!id){msg.style.color="#E11D48";msg.textContent="Please enter your registered email or mobile number.";return}
-    const text=`Hi, I forgot my password for my ZestoFood account. My registered email/mobile is: ${id}. Please help me reset it.`;
+    if(!id){msg.style.color="#E11D48";msg.textContent="Please enter your registered mobile number.";return}
+    const text=`Hi, I forgot my password for my Zesto Vendor account. My registered mobile number is: ${id}. Please help me reset it.`;
     window.open("https://wa.me/919634258114?text="+encodeURIComponent(text),"_blank");
   });
 }
@@ -2389,6 +2393,9 @@ function render(){
   if(authBootHandled&&!isApprovedVendor()&&!["vendor","login","signup","forgot-password"].includes(r)){routeTo("#/vendor");return}
   updateTabbar();
   if(r==="vendor"&&id==="orders")stopRingtone();
+ const authKey=["login","signup","forgot-password"].includes(r)?r:"";
+  if(authKey && $("#view").dataset.authView===authKey) return;
+  $("#view").dataset.authView=authKey;
   if(r==="login")LoginView();
   else if(r==="signup")SignupView();
   else if(r==="forgot-password")ForgotPasswordView();
