@@ -1358,9 +1358,13 @@ loyaltyCardSettingsRef.on('value',snap=>{LOYALTY_CARD_SETTINGS=Object.assign({en
 function parseRoute(){const h=location.hash.replace(/^#/,"")||"shop";return{parts:h.split("?")[0].split("/").filter(Boolean)}}
 function setTopbar(title,showBack){$("#page-title").textContent=title;$("#back-btn").style.display=showBack?"inline-grid":"none";updateTopbarAvatar()}
 function setActiveTab(name){$$(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name))}
-$("#back-btn").addEventListener("click",()=>history.back());
+$("#back-btn").addEventListener("click",()=>{
+  const sub=(location.hash||"").split("/")[2]||"";
+  if(sub==="register"||sub==="subscription"){return}
+  routeTo("#/vendor");
+});
 window.addEventListener("hashchange",()=>{ if(checkCitySelection()) render() });
-window.addEventListener("popstate",()=>{ if(checkCitySelection()) render() });
+window.addEventListener("popstate",()=>{ if(AUTH_USER && /^#\/(login|signup|forgot-password)/.test(location.hash||"")){routeTo("#/vendor");return} if(checkCitySelection()) render() });
 
 function ensureProfileBefore(nextHash){if(!hasCompleteProfile()){writeLocal("sf_next",nextHash||"#/checkout");routeTo("#/profile/setup");return false}return true}
 function renderStarIcons(rating,max=5){let h='';for(let i=1;i<=max;i++)h+=i<=rating?'<i class="fa-solid fa-star"></i>':'<i class="fa-solid fa-star empty"></i>';return h}
@@ -1513,7 +1517,7 @@ function LoginView(){
     const btn=$("#lg-submit");btn.disabled=true;btn.innerHTML="Logging in...";
     const doLogin=email=>zestoSignInWithRole(getAuth(),email,pw,'vendor').then(cred=>{
       AUTH_USER=cred.user;authBootHandled=true;
-      toast("Welcome back!");routeTo("#/vendor");render();
+zestoAppleSheet("Welcome back","You are logged in successfully.",()=>{routeTo("#/vendor");render();},{icon:"fa-hand-sparkles",bg:"#E6F7EE"});
       db.ref('users/'+cred.user.uid).once('value').then(snap=>{
         const u=snap.val();
         if(u&&u.blocked){getAuth().signOut();AUTH_USER=null;errBox.textContent="Your account has been blocked by the admin. Please contact support.";errBox.style.display="block";routeTo("#/login");render();}
