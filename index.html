@@ -1833,6 +1833,18 @@ function VendorRegisterView(){
     const address=$("#vr-address").value.trim();const category=$("#vr-category").value;const openingTime=readTimePicker('vr-open');const closingTime=readTimePicker('vr-close');
     const fssai=$("#vr-fssai").value.trim();const bankAccount=$("#vr-bank").value.trim();const upiId=$("#vr-upi").value.trim();
     if(!restaurantName||!ownerName||!mobile||!email||!address||!category||!openingTime||!closingTime||!fssai||!bankAccount||!upiId){alert("Please fill all required fields.");return}
+    if(!/^\d{10}$/.test(mobile)){alert("Mobile number must be exactly 10 digits.");return}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){alert("Please enter a valid email address.");return}
+    if(!/^\d{6}$/.test($("#vr-pincode").value.trim())){alert("Pincode must be exactly 6 digits.");return}
+    if(!/^\d{14}$/.test(fssai)){alert("FSSAI number must be exactly 14 digits.");return}
+    const gstVal=$("#vr-gst").value.trim().toUpperCase();
+    if(gstVal&&!/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z\d]$/.test(gstVal)){alert("GST number format is invalid.");return}
+    const idVal=$("#vr-idproof").value.trim().toUpperCase();
+    if(idVal&&!(/^\d{12}$/.test(idVal)||/^[A-Z]{5}\d{4}[A-Z]$/.test(idVal))){alert("Enter a valid 12-digit Aadhaar or PAN (ABCDE1234F).");return}
+    if(!/^\d{9,18}$/.test(bankAccount)){alert("Bank account number must be 9 to 18 digits.");return}
+    if(!/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/.test(upiId)){alert("Enter a valid UPI ID (name@bank).");return}
+    if(!uploads.logo||!uploads.images.length||!uploads.documents.length){alert("Please upload logo, at least one restaurant image, and at least one document.");return}
+    if(!$("#vr-terms").checked){alert("Please accept the Terms & Conditions.");return}
     if(!uploads.logo||!uploads.images.length||!uploads.documents.length){alert("Please upload logo, at least one restaurant image, and at least one document.");return}
     if(!$("#vr-terms").checked){alert("Please accept the Terms & Conditions.");return}
     const data={
@@ -1885,17 +1897,25 @@ function VendorSubscriptionView(){
     },1200);
   });
 }
+function zestoAppleSheet(title,message,onDone,opts){
+  const o=opts||{};
+  const wrap=document.createElement("div");
+  wrap.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99999;display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .25s ease";
+  const sheet=document.createElement("div");
+  sheet.style.cssText="width:100%;max-width:520px;background:#fff;border-radius:22px 22px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 30px rgba(0,0,0,.18);transform:translateY(100%);transition:transform .38s cubic-bezier(.2,.8,.2,1);text-align:center";
+  sheet.innerHTML=`<div style="width:40px;height:5px;border-radius:99px;background:#d1d5db;margin:0 auto 16px"></div>
+    <div style="width:64px;height:64px;border-radius:50%;background:${o.bg||'#E6F7EE'};display:grid;place-items:center;margin:0 auto 12px"><i class="fa-solid ${o.icon||'fa-circle-check'}" style="font-size:28px;color:${o.color||'#18A957'}"></i></div>
+    <div style="font-family:Poppins;font-weight:700;font-size:20px;color:#0d3a33;margin-bottom:6px">${title}</div>
+    <div style="font-size:14px;color:#4b5563;line-height:1.5;margin-bottom:18px">${message}</div>
+    <button id="zs-sheet-ok" style="width:100%;height:50px;border:0;border-radius:14px;background:#18A957;color:#fff;font-weight:700;font-size:16px">${o.button||'Continue'}</button>`;
+  wrap.appendChild(sheet);document.body.appendChild(wrap);
+  requestAnimationFrame(()=>{wrap.style.opacity="1";sheet.style.transform="translateY(0)"});
+  const close=()=>{sheet.style.transform="translateY(100%)";wrap.style.opacity="0";setTimeout(()=>{wrap.remove();if(onDone)onDone()},300)};
+  sheet.querySelector("#zs-sheet-ok").addEventListener("click",close);
+  wrap.addEventListener("click",e=>{if(e.target===wrap)close()});
+}
 function showVendorSuccessAnimation(){
-  const div=document.createElement("div");
-  div.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px";
-  div.innerHTML=`<div class="card pad" style="max-width:340px;text-align:center;padding:32px 20px">
-    <div class="ring-pulse" style="width:80px;height:80px;border-radius:50%;background:#E6F7EE;display:grid;place-items:center;margin:0 auto 16px;font-size:38px;color:var(--success)"><i class="fa-solid fa-circle-check"></i></div>
-    <h2 style="margin:0 0 8px;font-family:Poppins;color:var(--accentDark)">Congratulations!</h2>
-    <p class="muted" style="margin:0 0 18px">Your Vendor Panel has been activated successfully. Our team will review your application shortly.</p>
-    <button class="btn btn-block" id="vendor-success-ok">Continue</button>
-  </div>`;
-  document.body.appendChild(div);
-  $("#vendor-success-ok").addEventListener("click",()=>{div.remove();routeTo("#/vendor")});
+  zestoAppleSheet("Congratulations!","Your Vendor Panel has been activated successfully. Our team will review your application shortly.",()=>routeTo("#/vendor"),{button:"Continue"});
 }
 
 function VendorDashboardView(){
@@ -2398,7 +2418,8 @@ function render(){
   }
   // Only check approval status after auth has completed. Before authBootHandled,
   // we don't yet know the vendor's status, so allow rendering to proceed.
-  if(authBootHandled&&!isApprovedVendor()&&!["vendor","login","signup","forgot-password"].includes(r)){routeTo("#/vendor");return}
+  const vendorSub=(location.hash||"").split("/")[2]||"";
+  if(authBootHandled&&r==="vendor"&&!isApprovedVendor()&&!["","register","subscription"].includes(vendorSub)){routeTo("#/vendor");return}
   updateTabbar();
   if(r==="vendor"&&id==="orders")stopRingtone();
  const authKey=["login","signup","forgot-password"].includes(r)?r:"";
