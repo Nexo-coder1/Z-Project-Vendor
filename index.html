@@ -1771,6 +1771,7 @@ function VendorEntryView(){
 }
 
 function VendorRegisterView(){
+  if(document.getElementById("vendor-reg-form")) return;
   setTopbar("Vendor Registration",true);setActiveTab("");
   let uploads={logo:"",images:[],documents:[]};
   $("#view").innerHTML=`
